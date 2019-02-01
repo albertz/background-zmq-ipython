@@ -33,7 +33,6 @@ class IPythonBackgroundKernelWrapper:
         """
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
-        self._main_thread = threading.current_thread()
 
         if connection_fn_with_pid:
             name, ext = os.path.splitext(connection_filename)
