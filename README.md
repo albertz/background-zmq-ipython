@@ -11,3 +11,8 @@ Alternatives / related links:
   This has some issues
   (e.g. [here](https://github.com/ipython/ipython/issues/4032);
   messing around with `sys.stdout` etc).
+* This code was introduced in
+  [this StackOverflow question](https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script),
+  and also discussed in this [IPython GitHub issue #8097](https://github.com/ipython/ipython/issues/8097),
+  but it has become outdated, so this project provides a rewrite / updated code,
+  and the goal was also an easy to install pip package.
