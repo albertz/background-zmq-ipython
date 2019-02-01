@@ -3,6 +3,9 @@ import os
 import sys
 import better_exchook
 import threading
+# Use this to debug Sqlite problems:
+# import sqlite_debugging
+from ipykernel.ipkernel import IPythonKernel
 
 
 def _embed_kernel_simple():
@@ -30,7 +33,7 @@ class IPythonBackgroundKernelWrapper:
         self._thread = None  # type: threading.Thread
         self._shell_stream = None
         self._control_stream = None
-        self._kernel = None
+        self._kernel = None  # type: IPythonKernel
         self._create_logger()
         self._create_session()
         self._create_sockets()
@@ -110,37 +113,29 @@ class IPythonBackgroundKernelWrapper:
             self._control_stream = ZMQStream(self._control_socket)
             self._condition.notify_all()
 
-    def _wait_for_streams(self):
-        assert threading.current_thread() is self._main_thread
-        with self._condition:
-            if not self._shell_stream:
-                assert self._thread and self._thread.is_alive()
-                self._condition.wait()
-
     def _create_kernel(self):
         """
         Creates the kernel.
-        This must run in the main thread, to avoid history sqlite DB errors at exit.
-        https://github.com/ipython/ipython/issues/680
+        This should be done in the background thread.
         """
-        assert threading.current_thread() is self._main_thread
-        self._wait_for_streams()
-        from ipykernel.ipkernel import IPythonKernel
+        from traitlets.config.loader import Config
+        assert threading.current_thread() is self._thread
+        # Creating the kernel will also initialize the shell (ZMQInteractiveShell) on the first call.
+        # The shell will have the history manager (HistoryManager).
+        # HistoryManager/HistoryAccessor will init the Sqlite DB. It will be closed via atexit,
+        # so we want to allow the access from a different thread at that point.
+        # Also see here: https://github.com/ipython/ipython/issues/680
+        config = Config()
+        config.HistoryAccessor.connection_options = dict(check_same_thread=False)
         kernel = IPythonKernel(
             session=self._session,
             shell_streams=[self._shell_stream, self._control_stream],
             iopub_socket=self._iopub_socket,
-            log=self._logger)
+            log=self._logger,
+            config=config)
         with self._condition:
             self._kernel = kernel
             self._condition.notify_all()
-
-    def _wait_for_kernel(self):
-        # Wait until main thread creates the kernel.
-        assert threading.current_thread() is self._thread
-        with self._condition:
-            if not self._kernel:
-                self._condition.wait()
 
     def _start_kernel(self):
         """
@@ -149,8 +144,8 @@ class IPythonBackgroundKernelWrapper:
         """
         assert threading.current_thread() is self._thread
         self._setup_streams()
-        self._wait_for_kernel()
-        print("IPython: Start kernel now. pid: %i" % os.getpid())
+        self._create_kernel()
+        print("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._kernel.start()
 
     def _thread_loop(self):
@@ -171,7 +166,6 @@ class IPythonBackgroundKernelWrapper:
         thread.daemon = True
         self._thread = thread
         thread.start()
-        self._create_kernel()
 
 
 def init_ipython_kernel():
