@@ -24,7 +24,8 @@ class IPythonBackgroundKernelWrapper:
     https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script
     """
 
-    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None, user_ns=None):
+    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None,
+                 user_ns=None, banner="Hello from background-zmq-ipython."):
         """
         :param str connection_filename:
         :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
@@ -44,6 +45,7 @@ class IPythonBackgroundKernelWrapper:
         self._control_stream = None
         self._kernel = None  # type: IPythonKernel
         self._user_ns = user_ns
+        self._banner = banner
 
         if not logger:
             logger = logging.Logger("IPython", level=logging.INFO)
@@ -131,6 +133,7 @@ class IPythonBackgroundKernelWrapper:
         # so we want to allow the access from a different thread at that point.
         # Also see here: https://github.com/ipython/ipython/issues/680
         config = Config()
+        config.InteractiveShell.banner2 = self._banner
         config.HistoryAccessor.connection_options = dict(check_same_thread=False)
         kernel = IPythonKernel(
             session=self._session,
