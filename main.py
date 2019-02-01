@@ -101,6 +101,9 @@ class IPythonBackgroundKernelWrapper:
         from ipykernel import write_connection_file
         atexit.register(self._cleanup_connection_file)
         write_connection_file(self._connection_filename, key=self._session.key, **self._connection_info)
+        # The key should be secret, to only allow the same user to connect.
+        # Make sure the permissions are set accordingly.
+        os.chmod(self._connection_filename, os.stat(self._connection_filename).st_mode & 0o0700)
         self._logger.info(
             "To connect another client to this IPython kernel, use: " +
             "jupyter console --existing %s" % self._connection_filename)
