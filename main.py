@@ -194,6 +194,7 @@ class IPythonBackgroundKernelWrapper:
 def init_ipython_kernel(**kwargs):
     kernel_wrapper = IPythonBackgroundKernelWrapper(**kwargs)
     kernel_wrapper.start()
+    return kernel_wrapper
 
 
 init_ipython_kernel.__doc__ = IPythonBackgroundKernelWrapper.__init__.__doc__
