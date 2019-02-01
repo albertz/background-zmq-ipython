@@ -3,6 +3,7 @@ import os
 import sys
 import better_exchook
 import threading
+import logging
 # Use this to debug Sqlite problems:
 # import sqlite_debugging
 from ipykernel.ipkernel import IPythonKernel
@@ -23,31 +24,37 @@ class IPythonBackgroundKernelWrapper:
     https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script
     """
 
-    def __init__(self):
-        assert threading.current_thread() is threading.main_thread()
-        import asyncio
+    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None):
+        """
+        :param str connection_filename:
+        :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
+        :param logging.Logger logger:
+        """
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
         self._main_thread = threading.current_thread()
-        self._main_loop = asyncio.get_event_loop()
+
+        if connection_fn_with_pid:
+            name, ext = os.path.splitext(connection_filename)
+            connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
+        self._connection_filename = connection_filename
+
         self._thread = None  # type: threading.Thread
         self._shell_stream = None
         self._control_stream = None
         self._kernel = None  # type: IPythonKernel
-        self._create_logger()
+
+        if not logger:
+            logger = logging.Logger("IPython", level=logging.INFO)
+            # or no logging? logger.addHandler(logging.NullHandler())
+            logger.addHandler(logging.StreamHandler(sys.stdout))
+        self._logger = logger
+
         self._create_session()
         self._create_sockets()
         self._write_connection_file()
 
-    def _create_logger(self):
-        import logging
-        logger = logging.Logger("IPython", level=logging.INFO)
-        # or no logging? logger.addHandler(logging.NullHandler())
-        logger.addHandler(logging.StreamHandler(sys.stdout))
-        self._logger = logger
-
     def _create_session(self):
-        assert threading.current_thread() is self._main_thread  # not sure...
         from jupyter_client.session import Session, new_id_bytes
         self._session = Session(username=u'kernel', key=new_id_bytes())
 
@@ -81,23 +88,20 @@ class IPythonBackgroundKernelWrapper:
         self._control_socket = control_socket
         self._iopub_socket = iopub_socket
 
+    def _cleanup_connection_file(self):
+        try:
+            os.remove(self._connection_filename)
+        except (IOError, OSError):
+            pass
+
     def _write_connection_file(self):
         import atexit
         from ipykernel import write_connection_file
-
-        #connection_file = "kernel-%s.json" % os.getpid()
-        connection_file = "kernel.json"
-        def cleanup_connection_file():
-            try:
-                os.remove(connection_file)
-            except (IOError, OSError):
-                pass
-        atexit.register(cleanup_connection_file)
-
-        write_connection_file(connection_file, key=self._session.key, **self._connection_info)
-
-        print("To connect another client to this IPython kernel, use:",
-              "jupyter console --existing %s" % connection_file)
+        atexit.register(self._cleanup_connection_file)
+        write_connection_file(self._connection_filename, key=self._session.key, **self._connection_info)
+        self._logger.info(
+            "To connect another client to this IPython kernel, use: " +
+            "jupyter console --existing %s" % self._connection_filename)
 
     def _setup_streams(self):
         """
@@ -145,7 +149,7 @@ class IPythonBackgroundKernelWrapper:
         assert threading.current_thread() is self._thread
         self._setup_streams()
         self._create_kernel()
-        print("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
+        self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._kernel.start()
 
     def _thread_loop(self):
@@ -168,8 +172,8 @@ class IPythonBackgroundKernelWrapper:
         thread.start()
 
 
-def init_ipython_kernel():
-    kernel_wrapper = IPythonBackgroundKernelWrapper()
+def init_ipython_kernel(**kwargs):
+    kernel_wrapper = IPythonBackgroundKernelWrapper(**kwargs)
     kernel_wrapper.start()
 
 
