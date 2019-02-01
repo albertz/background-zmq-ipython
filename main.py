@@ -24,7 +24,7 @@ class IPythonBackgroundKernelWrapper:
     https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script
     """
 
-    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None):
+    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None, user_ns=None):
         """
         :param str connection_filename:
         :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
@@ -43,6 +43,7 @@ class IPythonBackgroundKernelWrapper:
         self._shell_stream = None
         self._control_stream = None
         self._kernel = None  # type: IPythonKernel
+        self._user_ns = user_ns
 
         if not logger:
             logger = logging.Logger("IPython", level=logging.INFO)
@@ -136,6 +137,7 @@ class IPythonBackgroundKernelWrapper:
             shell_streams=[self._shell_stream, self._control_stream],
             iopub_socket=self._iopub_socket,
             log=self._logger,
+            user_ns=self._user_ns,
             config=config)
         with self._condition:
             self._kernel = kernel
@@ -161,7 +163,6 @@ class IPythonBackgroundKernelWrapper:
         loop.call_soon(self._start_kernel)
         try:
             loop.run_forever()
-
         except KeyboardInterrupt:
             pass
 
@@ -177,6 +178,9 @@ def init_ipython_kernel(**kwargs):
     kernel_wrapper.start()
 
 
+init_ipython_kernel.__doc__ = IPythonBackgroundKernelWrapper.__doc__
+
+
 def _endless_dummy_loop():
     import time
     while True:
@@ -188,7 +192,7 @@ def _endless_dummy_loop():
 
 
 def main():
-    init_ipython_kernel()
+    init_ipython_kernel(user_ns={"demo_var": 42})
 
     # Do nothing. Keep main thread alive, as IPython kernel lives in a daemon thread.
     # This is just a demo. Normally you would have your main loop in the main thread.
