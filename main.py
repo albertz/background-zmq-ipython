@@ -5,7 +5,7 @@ import better_exchook
 import threading
 import logging
 # Use this to debug Sqlite problems:
-# import sqlite_debugging
+# import .sqlite_debugging
 from ipykernel.ipkernel import IPythonKernel
 
 
