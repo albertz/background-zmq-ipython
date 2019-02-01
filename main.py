@@ -1,6 +1,7 @@
 
 import os
 import sys
+import better_exchook
 
 
 def init_ipython_kernel():
@@ -11,11 +12,11 @@ def init_ipython_kernel():
     """
     #
     try:
-        import IPython.kernel.zmq.ipkernel
-        from IPython.kernel.zmq.ipkernel import Kernel
-        from IPython.kernel.zmq.heartbeat import Heartbeat
-        from IPython.kernel.zmq.session import Session
-        from IPython.kernel import write_connection_file
+        import ipykernel.zmqshell
+        from ipykernel.ipkernel import IPythonKernel
+        from ipykernel.heartbeat import Heartbeat
+        from ipykernel import write_connection_file
+        from jupyter_client.session import Session
         import zmq
         from zmq.eventloop import ioloop
         from zmq.eventloop.zmqstream import ZMQStream
@@ -27,6 +28,9 @@ def init_ipython_kernel():
     import socket
     import logging
     import threading
+
+    import asyncio
+    loop = asyncio.get_event_loop()
 
     # Do in mainthread to avoid history sqlite DB errors at exit.
     # https://github.com/ipython/ipython/issues/680
@@ -40,9 +44,10 @@ def init_ipython_kernel():
                 pass
         atexit.register(cleanup_connection_file)
 
-        logger = logging.Logger("IPython")
-        logger.addHandler(logging.NullHandler())
-        session = Session(username=u'kernel')
+        logger = logging.Logger("IPython", level=logging.INFO)
+        #logger.addHandler(logging.NullHandler())
+        logger.addHandler(logging.StreamHandler(sys.stdout))
+        session = Session(username=u'kernel', key=b'')
 
         context = zmq.Context.instance()
         ip = socket.gethostbyname(socket.gethostname())
@@ -55,7 +60,7 @@ def init_ipython_kernel():
         control_socket = context.socket(zmq.ROUTER)
         control_port = control_socket.bind_to_random_port(addr)
 
-        hb_ctx = zmq.Context()
+        hb_ctx = context #zmq.Context()
         heartbeat = Heartbeat(hb_ctx, (transport, ip, 0))
         hb_port = heartbeat.port
         heartbeat.start()
@@ -63,36 +68,52 @@ def init_ipython_kernel():
         shell_stream = ZMQStream(shell_socket)
         control_stream = ZMQStream(control_socket)
 
-        kernel = Kernel(session=session,
-                        shell_streams=[shell_stream, control_stream],
-                        iopub_socket=iopub_socket,
-                        log=logger)
+        kernel = IPythonKernel(
+            session=session,
+            shell_streams=[shell_stream, control_stream],
+            iopub_socket=iopub_socket,
+            log=logger)
+        #kernel = IPythonKernel(session=session)
 
         write_connection_file(connection_file,
                               shell_port=shell_port, iopub_port=iopub_port, control_port=control_port, hb_port=hb_port,
                               ip=ip)
 
-        print("To connect another client to this IPython kernel, use: ",
-              "ipython console --existing %s" % connection_file)
+        print("To connect another client to this IPython kernel, use:",
+              "jupyter console --existing %s" % connection_file)
     except Exception as e:
         print("Exception while initializing IPython ZMQ kernel. %s" % e)
         return
 
     def start_kernel():
-        print("IPython: Start kernel now.")
+        print("IPython: Start kernel now. pid: %i" % os.getpid())
         kernel.start()
 
     def ipython_thread():
-        import asyncio
-        loop = asyncio.new_event_loop()
-        loop.call_soon(start_kernel)
-        print("IPython event loop:", loop)
+        #ioloop.install()
+
+        #loop.call_soon(start_kernel)
         try:
-            loop.run_forever()
+            #loop.run_forever()
+            #kernel.start()
+            pass
+
         except KeyboardInterrupt:
             pass
 
+    # TODO run in separate thread ...
+    loop.call_soon(start_kernel)
+    loop.run_forever()
+
     thread = threading.Thread(target=ipython_thread, name="IPython kernel")
-    thread.daemon = True
+    #thread.daemon = True
     thread.start()
 
+
+def main():
+    init_ipython_kernel()
+
+
+if __name__ == '__main__':
+    better_exchook.install()
+    main()
