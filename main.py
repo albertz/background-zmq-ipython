@@ -181,7 +181,7 @@ def init_ipython_kernel(**kwargs):
     kernel_wrapper.start()
 
 
-init_ipython_kernel.__doc__ = IPythonBackgroundKernelWrapper.__doc__
+init_ipython_kernel.__doc__ = IPythonBackgroundKernelWrapper.__init__.__doc__
 
 
 def _endless_dummy_loop():
