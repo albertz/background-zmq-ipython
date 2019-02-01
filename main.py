@@ -17,6 +17,19 @@ def _embed_kernel_simple():
     embed_kernel()
 
 
+class OurIPythonKernel(IPythonKernel):
+    """
+    Overwrite some functions, to make it work in a thread.
+    E.g. we do not want to have any `signal.signal` calls.
+    """
+
+    def pre_handler_hook(self):
+        pass
+
+    def post_handler_hook(self):
+        pass
+
+
 class IPythonBackgroundKernelWrapper:
     """
     You can remotely connect to this IPython kernel. See the output on stdout.
@@ -42,7 +55,7 @@ class IPythonBackgroundKernelWrapper:
         self._thread = None  # type: threading.Thread
         self._shell_stream = None
         self._control_stream = None
-        self._kernel = None  # type: IPythonKernel
+        self._kernel = None  # type: OurIPythonKernel
         self._user_ns = user_ns
         self._banner = banner
 
@@ -137,7 +150,7 @@ class IPythonBackgroundKernelWrapper:
         config = Config()
         config.InteractiveShell.banner2 = self._banner
         config.HistoryAccessor.connection_options = dict(check_same_thread=False)
-        kernel = IPythonKernel(
+        kernel = OurIPythonKernel(
             session=self._session,
             shell_streams=[self._shell_stream, self._control_stream],
             iopub_socket=self._iopub_socket,
