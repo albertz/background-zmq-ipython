@@ -23,15 +23,64 @@ twine upload dist/background_zmq_ipython-*
 
 See also MANIFEST.in for included files.
 
+For debugging this script:
+
+python3 setup.py sdist
+pip3 install --user dist/...*.tar.gz -v
+(Without -v, all stdout/stderr from here will not be shown.)
+
 """
 
 from distutils.core import setup
 import time
+from pprint import pprint
+import os
+
+
+def debug_print_file(fn):
+    print("%s:" % fn)
+    if not os.path.exists(fn):
+        print("<does not exist>")
+        return
+    if os.path.isdir(fn):
+        print("<dir:>")
+        pprint(os.listdir(fn))
+        return
+    print(open(fn).read())
+
+
+def parse_pkg_info(fn):
+    """
+    :param str fn:
+    :rtype: dict[str,str]
+    """
+    res = {}
+    for ln in open(fn).read().splitlines():
+        if not ln or not ln[:1].strip():
+            continue
+        key, value = ln.split(": ", 1)
+        res[key] = value
+    return res
+
+
+if os.path.exists("PKG-INFO"):
+    print("Found existing PKG-INFO.")
+    info = parse_pkg_info("PKG-INFO")
+    version = info["Version"]
+    print("Version via PKG-INFO:", version)
+else:
+    version = time.strftime("1.%Y%m%d.%H%M%S", time.gmtime())
+    print("Version via current time:", version)
+
+
+if os.environ.get("DEBUG", "") == "1":
+    debug_print_file(".")
+    debug_print_file("PKG-INFO")
 
 
 setup(
     name='background_zmq_ipython',
-    version=time.strftime("1.%Y%m%d.%H%M%S", time.gmtime()),
+    version=version,
     packages=['background_zmq_ipython'],
     package_dir={'background_zmq_ipython': ''},
     description='Background ZMQ IPython/Jupyter kernel',
