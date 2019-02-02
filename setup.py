@@ -40,6 +40,7 @@ setup(
     url='https://github.com/albertz/background-zmq-ipython',
     license='2-clause BSD license',
     long_description=open('README.rst').read(),
+    install_requires=open('requirements.txt').read().splitlines(),
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         'Development Status :: 5 - Production/Stable',
