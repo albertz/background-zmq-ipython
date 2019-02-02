@@ -1,7 +1,7 @@
 Run some IPython ZMQ kernel in the background, without an interactive shell.
 You can connect to that kernel remotely via ZMQ.
 
-Installation::
+Installation (`package is on PyPI <https://pypi.org/project/background_zmq_ipython/>`_)::
 
     pip install background_zmq_ipython
 
