@@ -6,7 +6,7 @@ import threading
 import logging
 # Use this to debug Sqlite problems:
 # import .sqlite_debugging
-from ipykernel.ipkernel import IPythonKernel
+from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
 
 
 def _embed_kernel_simple():
@@ -17,11 +17,26 @@ def _embed_kernel_simple():
     embed_kernel()
 
 
+class OurZMQInteractiveShell(ZMQInteractiveShell):
+    """
+    Overwrite for the embedding case.
+    Also see InteractiveShellEmbed for reference.
+    """
+
+    def init_sys_modules(self):
+        pass
+
+    def init_prompts(self):
+        pass
+
+
 class OurIPythonKernel(IPythonKernel):
     """
     Overwrite some functions, to make it work in a thread.
     E.g. we do not want to have any `signal.signal` calls.
     """
+
+    shell_class = OurZMQInteractiveShell
 
     def pre_handler_hook(self):
         pass
