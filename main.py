@@ -50,13 +50,13 @@ class IPythonBackgroundKernelWrapper:
         if connection_fn_with_pid:
             name, ext = os.path.splitext(connection_filename)
             connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
-        self._connection_filename = connection_filename
+        self.connection_filename = connection_filename
 
-        self._thread = None  # type: threading.Thread
+        self.thread = None  # type: threading.Thread
         self._shell_stream = None
         self._control_stream = None
         self._kernel = None  # type: OurIPythonKernel
-        self._user_ns = user_ns
+        self.user_ns = user_ns
         self._banner = banner
 
         if not logger:
@@ -105,7 +105,7 @@ class IPythonBackgroundKernelWrapper:
 
     def _cleanup_connection_file(self):
         try:
-            os.remove(self._connection_filename)
+            os.remove(self.connection_filename)
         except (IOError, OSError):
             pass
 
@@ -113,13 +113,13 @@ class IPythonBackgroundKernelWrapper:
         import atexit
         from ipykernel import write_connection_file
         atexit.register(self._cleanup_connection_file)
-        write_connection_file(self._connection_filename, key=self._session.key, **self._connection_info)
+        write_connection_file(self.connection_filename, key=self._session.key, **self._connection_info)
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
-        os.chmod(self._connection_filename, os.stat(self._connection_filename).st_mode & 0o0700)
+        os.chmod(self.connection_filename, os.stat(self.connection_filename).st_mode & 0o0700)
         self._logger.info(
             "To connect another client to this IPython kernel, use: " +
-            "jupyter console --existing %s" % self._connection_filename)
+            "jupyter console --existing %s" % self.connection_filename)
 
     def _setup_streams(self):
         """
@@ -127,7 +127,7 @@ class IPythonBackgroundKernelWrapper:
         These need to be constructed within the right active event loop,
         i.e. this must run in the background thread.
         """
-        assert threading.current_thread() is self._thread
+        assert threading.current_thread() is self.thread
         from zmq.eventloop.zmqstream import ZMQStream
         # ZMQStream wants a Tornado IOLoop, not a asyncio loop.
         with self._condition:
@@ -141,7 +141,7 @@ class IPythonBackgroundKernelWrapper:
         This should be done in the background thread.
         """
         from traitlets.config.loader import Config
-        assert threading.current_thread() is self._thread
+        assert threading.current_thread() is self.thread
         # Creating the kernel will also initialize the shell (ZMQInteractiveShell) on the first call.
         # The shell will have the history manager (HistoryManager).
         # HistoryManager/HistoryAccessor will init the Sqlite DB. It will be closed via atexit,
@@ -155,7 +155,7 @@ class IPythonBackgroundKernelWrapper:
             shell_streams=[self._shell_stream, self._control_stream],
             iopub_socket=self._iopub_socket,
             log=self._logger,
-            user_ns=self._user_ns,
+            user_ns=self.user_ns,
             config=config)
         with self._condition:
             self._kernel = kernel
@@ -166,14 +166,14 @@ class IPythonBackgroundKernelWrapper:
         Starts the kernel itself.
         This must run in the background thread.
         """
-        assert threading.current_thread() is self._thread
+        assert threading.current_thread() is self.thread
         self._setup_streams()
         self._create_kernel()
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._kernel.start()
 
     def _thread_loop(self):
-        assert threading.current_thread() is self._thread
+        assert threading.current_thread() is self.thread
         import asyncio
 
         # Need own event loop for this thread.
@@ -187,7 +187,7 @@ class IPythonBackgroundKernelWrapper:
     def start(self):
         thread = threading.Thread(target=self._thread_loop, name="IPython kernel")
         thread.daemon = True
-        self._thread = thread
+        self.thread = thread
         thread.start()
 
 
