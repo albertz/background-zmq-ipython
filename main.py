@@ -29,6 +29,11 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     def init_prompts(self):
         pass
 
+    def exiter(self):
+        # See ZMQExitAutocall.
+        self.keepkernel_on_exit = True
+        self.ask_exit()
+
 
 class OurIPythonKernel(IPythonKernel):
     """
