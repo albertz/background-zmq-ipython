@@ -230,7 +230,7 @@ def _endless_dummy_loop():
             return
 
 
-def main():
+def _main():
     import argparse
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("--no_connection_fn_with_pid", action="store_true")
@@ -248,4 +248,4 @@ def main():
 
 if __name__ == '__main__':
     better_exchook.install()
-    main()
+    _main()
