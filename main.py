@@ -226,10 +226,18 @@ def _endless_dummy_loop():
 
 
 def main():
-    init_ipython_kernel(user_ns={"demo_var": 42})
+    import argparse
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--no_connection_fn_with_pid", action="store_true")
+    args = arg_parser.parse_args()
+
+    init_ipython_kernel(
+        user_ns={"demo_var": 42},
+        connection_fn_with_pid=not args.no_connection_fn_with_pid)
 
     # Do nothing. Keep main thread alive, as IPython kernel lives in a daemon thread.
     # This is just a demo. Normally you would have your main loop in the main thread.
+    print("Running endless loop now... Press Ctrl+C to quit.")
     _endless_dummy_loop()
 
 
