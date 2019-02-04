@@ -198,6 +198,7 @@ class IPythonBackgroundKernelWrapper:
 
         # Need own event loop for this thread.
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.call_soon(self._start_kernel)
         try:
             loop.run_forever()
