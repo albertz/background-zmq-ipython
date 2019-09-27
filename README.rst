@@ -16,6 +16,25 @@ The init will print some message similar to this on stdout::
     To connect another client to this IPython kernel, use:
     jupyter console --existing kernel-1111.json
 
+Now, after you connected, how to access globals from the main module? E.g. let's say there is a variable ``a``.
+
+* ``sys.modules["__main__"].a`` should work.
+  Via ``sys.modules``, you can access all the imported modules. Or just do ``import mod`` again.
+* Get the stack of all/other frames via ``sys._current_frames()``,
+  and there you can access the globals from other threads as well.
+* You can provide ``user_ns`` to ``init_ipython_kernel``, e.g::
+
+    init_ipython_kernel(user_ns=globals())
+
+  or::
+  
+    init_ipython_kernel(user_ns={"main_globals": globals()})
+
+  or::
+  
+    init_ipython_kernel(user_ns={"a": a})
+
+
 Alternatives / related links:
 
 * `pydbattach <https://github.com/albertz/pydbattach>`_
