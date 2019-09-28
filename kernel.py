@@ -1,12 +1,19 @@
 
 import os
 import sys
-import better_exchook
 import threading
 import logging
+# Note: IPython uses zmq.eventloop.zmqstream.ZMQStream, see IPythonKernel.
+# ZMQStream wants a Tornado IOLoop, not a asyncio loop.
+from tornado import ioloop
+from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
+
+try:
+    import typing
+except ImportError:
+    typing = None
 # Use this to debug Sqlite problems:
 # import .sqlite_debugging
-from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
 
 
 def _embed_kernel_simple():
@@ -72,10 +79,11 @@ class IPythonBackgroundKernelWrapper:
             connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
         self.connection_filename = connection_filename
 
-        self.thread = None  # type: threading.Thread
+        self.loop = None  # type: typing.Optional[ioloop.IOLoop]
+        self.thread = None  # type: typing.Optional[threading.Thread]
         self._shell_stream = None
         self._control_stream = None
-        self._kernel = None  # type: OurIPythonKernel
+        self._kernel = None  # type: typing.Optional[OurIPythonKernel]
         self.user_ns = user_ns
         self._banner = banner
 
@@ -84,10 +92,6 @@ class IPythonBackgroundKernelWrapper:
             # or no logging? logger.addHandler(logging.NullHandler())
             logger.addHandler(logging.StreamHandler(sys.stdout))
         self._logger = logger
-
-        self._create_session()
-        self._create_sockets()
-        self._write_connection_file()
 
     def _create_session(self):
         from jupyter_client.session import Session, new_id_bytes
@@ -148,11 +152,11 @@ class IPythonBackgroundKernelWrapper:
         i.e. this must run in the background thread.
         """
         assert threading.current_thread() is self.thread
+        assert self.loop
         from zmq.eventloop.zmqstream import ZMQStream
-        # ZMQStream wants a Tornado IOLoop, not a asyncio loop.
         with self._condition:
-            self._shell_stream = ZMQStream(self._shell_socket)
-            self._control_stream = ZMQStream(self._control_socket)
+            self._shell_stream = ZMQStream(self._shell_socket, io_loop=self.loop)
+            self._control_stream = ZMQStream(self._control_socket, io_loop=self.loop)
             self._condition.notify_all()
 
     def _create_kernel(self):
@@ -187,21 +191,27 @@ class IPythonBackgroundKernelWrapper:
         This must run in the background thread.
         """
         assert threading.current_thread() is self.thread
+
+        self._create_session()
+        self._create_sockets()
+        self._write_connection_file()
+
         self._setup_streams()
         self._create_kernel()
+
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._kernel.start()
 
     def _thread_loop(self):
         assert threading.current_thread() is self.thread
-        import asyncio
 
         # Need own event loop for this thread.
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.call_soon(self._start_kernel)
+        loop = ioloop.IOLoop()
+        self.loop = loop
+        loop.make_current()
+        loop.add_callback(self._start_kernel)
         try:
-            loop.run_forever()
+            loop.start()
         except KeyboardInterrupt:
             pass
 
@@ -219,34 +229,3 @@ def init_ipython_kernel(**kwargs):
 
 
 init_ipython_kernel.__doc__ = IPythonBackgroundKernelWrapper.__init__.__doc__
-
-
-def _endless_dummy_loop():
-    import time
-    while True:
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt in _endless_dummy_loop")
-            return
-
-
-def _main():
-    import argparse
-    arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("--no_connection_fn_with_pid", action="store_true")
-    args = arg_parser.parse_args()
-
-    init_ipython_kernel(
-        user_ns={"demo_var": 42},
-        connection_fn_with_pid=not args.no_connection_fn_with_pid)
-
-    # Do nothing. Keep main thread alive, as IPython kernel lives in a daemon thread.
-    # This is just a demo. Normally you would have your main loop in the main thread.
-    print("Running endless loop now... Press Ctrl+C to quit.")
-    _endless_dummy_loop()
-
-
-if __name__ == '__main__':
-    better_exchook.install()
-    _main()
