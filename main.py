@@ -19,7 +19,7 @@ def _endless_dummy_loop():
             return
 
 
-def _sig_handler(*args, **kwargs):
+def _sig_handler(num, frame):
     print("Got signal. Dump threads.")
     import better_exchook
     better_exchook.dump_all_thread_tracebacks()
@@ -29,7 +29,12 @@ def _main():
     import argparse
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("--no_connection_fn_with_pid", action="store_true")
+    arg_parser.add_argument("--debug_embed", action="store_true")
     args = arg_parser.parse_args()
+
+    if args.debug_embed:
+        from .kernel import _embed_kernel_simple
+        _embed_kernel_simple()
 
     init_ipython_kernel(
         user_ns={"demo_var": 42},
@@ -44,6 +49,7 @@ def _main():
 if __name__ == '__main__':
     import better_exchook
     better_exchook.install()
+    better_exchook.replace_traceback_format_tb()
     import signal
     signal.signal(signal.SIGUSR1, _sig_handler)
     _main()

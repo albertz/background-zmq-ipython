@@ -12,6 +12,11 @@ try:
     import typing
 except ImportError:
     typing = None
+try:
+    from better_exchook import better_exchook as except_hook
+except ImportError:
+    except_hook = sys.excepthook
+
 # Use this to debug Sqlite problems:
 # import .sqlite_debugging
 
@@ -94,7 +99,13 @@ class IPythonBackgroundKernelWrapper:
         self._logger = logger
 
     def _create_session(self):
-        from jupyter_client.session import Session, new_id_bytes
+        from jupyter_client.session import Session
+        try:
+            from jupyter_client.session import new_id_bytes
+        except ImportError:
+            def new_id_bytes():
+                import uuid
+                return uuid.uuid4()
         self._session = Session(username=u'kernel', key=new_id_bytes())
 
     def _create_sockets(self):
@@ -202,11 +213,16 @@ class IPythonBackgroundKernelWrapper:
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._kernel.start()
 
+    def _tornado_handle_callback_exception(self, callback):
+        self._logger.info("Tornado exception.")
+        except_hook(*sys.exc_info())
+
     def _thread_loop(self):
         assert threading.current_thread() is self.thread
 
         # Need own event loop for this thread.
         loop = ioloop.IOLoop()
+        loop.handle_callback_exception = self._tornado_handle_callback_exception
         self.loop = loop
         loop.make_current()
         loop.add_callback(self._start_kernel)
