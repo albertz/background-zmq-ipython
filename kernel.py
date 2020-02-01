@@ -8,6 +8,8 @@ import logging
 from tornado import ioloop
 from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
 
+from ipykernel.iostream import OutStream
+
 try:
     import typing
 except ImportError:
@@ -97,6 +99,23 @@ class IPythonBackgroundKernelWrapper:
             # or no logging? logger.addHandler(logging.NullHandler())
             logger.addHandler(logging.StreamHandler(sys.stdout))
         self._logger = logger
+
+    def _init_io(self):
+        """
+        Redirect stdout to iopub socket
+        call me after loging conection file
+        """
+        self._stdout_save, self._stderr_save = sys.stdout, sys.stderr
+        sys.stdout = OutStream(self._session, self._iopub_socket, 'stdout')
+        sys.stderr = OutStream(self._session, self._iopub_socket, 'stderr')
+
+    def _reset_io(self):
+        """
+        Restore original io to please client
+        call me on kernel close
+        """
+        sys.stdout = self._stdout_save
+        sys.stderr = self._stderr_save
 
     def _create_session(self):
         from jupyter_client.session import Session
@@ -211,6 +230,8 @@ class IPythonBackgroundKernelWrapper:
         self._create_kernel()
 
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
+        self._init_io()
+
         self._kernel.start()
 
     def _tornado_handle_callback_exception(self, callback):
