@@ -1,4 +1,5 @@
 
+import re
 import os
 import sys
 import threading
@@ -100,9 +101,15 @@ class IPythonBackgroundKernelWrapper:
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
 
+        # Get connection file path
         if connection_fn_with_pid:
             name, ext = os.path.splitext(connection_filename)
             connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
+            try:
+                from jupyter_core.paths import jupyter_runtime_dir
+                connection_filename = os.path.join(jupyter_runtime_dir(), connection_filename)
+            except ImportError:
+                pass
         self.connection_filename = connection_filename
 
         self.loop = None  # type: typing.Optional[ioloop.IOLoop]
@@ -191,9 +198,15 @@ class IPythonBackgroundKernelWrapper:
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
         os.chmod(self.connection_filename, os.stat(self.connection_filename).st_mode & 0o0700)
+
+        def shorten_filename(runtime_file):
+            """Shorten connection filename kernel-24536.json -> 24536"""
+            r_cfile = r'.*kernel-([^\-]*).*\.json'
+            return re.sub(r_cfile, r'\1', runtime_file)
+
         self._logger.info(
             "To connect another client to this IPython kernel, use: " +
-            "jupyter console --existing %s" % self.connection_filename)
+            "jupyter console --existing %s" % shorten_filename(self.connection_filename))
 
     def _setup_streams(self):
         """
