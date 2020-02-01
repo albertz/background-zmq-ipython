@@ -35,6 +35,7 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     """
     Overwrite for the embedding case.
     Also see InteractiveShellEmbed for reference.
+    py> `exit(keep_kernel=False)` or `exit(0)` to kill kernel thread
     """
 
     def init_sys_modules(self):
@@ -43,9 +44,9 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     def init_prompts(self):
         pass
 
-    def exiter(self):
+    def exiter(self, keep_kernel=True):
         # See ZMQExitAutocall.
-        self.keepkernel_on_exit = True
+        self.keepkernel_on_exit = keep_kernel
         self.ask_exit()
 
 
@@ -167,6 +168,7 @@ class IPythonBackgroundKernelWrapper:
         import atexit
         from ipykernel import write_connection_file
         atexit.register(self._cleanup_connection_file)
+        atexit.register(self._reset_io)
         write_connection_file(self.connection_filename, key=self._session.key, **self._connection_info)
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
@@ -249,7 +251,7 @@ class IPythonBackgroundKernelWrapper:
         loop.add_callback(self._start_kernel)
         try:
             loop.start()
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             pass
 
     def start(self):
