@@ -212,14 +212,10 @@ class IPythonBackgroundKernelWrapper:
         # Make sure the permissions are set accordingly.
         os.chmod(self.connection_filename, os.stat(self.connection_filename).st_mode & 0o0700)
 
-        def shorten_filename(runtime_file):
-            """Shorten connection filename kernel-24536.json -> 24536"""
-            r_cfile = r'.*kernel-([^\-]*).*\.json'
-            return re.sub(r_cfile, r'\1', runtime_file)
-
+        # Log connection advice to stdout
         fname_log = self.connection_filename
         if self._should_reduce_filename:
-            fname_log = shorten_filename(fname_log)
+            fname_log = re.sub(r'.*kernel-([^\-]*).*\.json', r'\1', fname_log)
         self._logger.info(
             "To connect another client to this IPython kernel, use: "
             "jupyter console --existing %s", fname_log)
