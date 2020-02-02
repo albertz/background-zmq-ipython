@@ -64,6 +64,24 @@ class OurIPythonKernel(IPythonKernel):
         pass
 
 
+class OurOutStream():
+    """
+    Stream proxy:
+    Call thread streams if in my thread
+    Otherwise, call standard stream (process-wide)
+    """
+    def __init__(self, process_stream, session, socket, name):
+        self._process_stream = process_stream
+        self._thread_stream = OutStream(session, socket, name)
+        self._thread_id = threading.currentThread().ident
+
+    def __getattr__(self, name):
+        ident = threading.currentThread().ident
+        if ident == self._thread_id:
+            return getattr(self._thread_stream, name)
+        return getattr(self._process_stream, name)
+
+
 class IPythonBackgroundKernelWrapper:
     """
     You can remotely connect to this IPython kernel. See the output on stdout.
@@ -106,8 +124,8 @@ class IPythonBackgroundKernelWrapper:
         call me after logging connection file
         """
         self._stdout_save, self._stderr_save = sys.stdout, sys.stderr
-        sys.stdout = OutStream(self._session, self._iopub_socket, 'stdout')
-        sys.stderr = OutStream(self._session, self._iopub_socket, 'stderr')
+        sys.stdout = OurOutStream(sys.stdout, self._session, self._iopub_socket, 'stderr')
+        sys.stderr = OurOutStream(sys.stderr, self._session, self._iopub_socket, 'stderr')
 
     def _reset_io(self):
         """
