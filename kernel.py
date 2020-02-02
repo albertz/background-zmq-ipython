@@ -7,7 +7,6 @@ import logging
 # ZMQStream wants a Tornado IOLoop, not a asyncio loop.
 from tornado import ioloop
 from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
-
 from ipykernel.iostream import OutStream
 
 try:
@@ -104,7 +103,7 @@ class IPythonBackgroundKernelWrapper:
     def _init_io(self):
         """
         Redirect stdout to iopub socket
-        call me after loging conection file
+        call me after logging connection file
         """
         self._stdout_save, self._stderr_save = sys.stdout, sys.stderr
         sys.stdout = OutStream(self._session, self._iopub_socket, 'stdout')
@@ -233,7 +232,6 @@ class IPythonBackgroundKernelWrapper:
 
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
         self._init_io()
-
         self._kernel.start()
 
     def _tornado_handle_callback_exception(self, callback):
