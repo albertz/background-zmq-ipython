@@ -7,6 +7,7 @@ import logging
 # ZMQStream wants a Tornado IOLoop, not a asyncio loop.
 from tornado import ioloop
 from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
+from ipykernel.iostream import OutStream
 
 try:
     import typing
@@ -33,6 +34,7 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     """
     Overwrite for the embedding case.
     Also see InteractiveShellEmbed for reference.
+    py> `exit(keep_kernel=False)` or `exit(0)` to kill kernel thread
     """
 
     def init_sys_modules(self):
@@ -41,9 +43,9 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     def init_prompts(self):
         pass
 
-    def exiter(self):
+    def exiter(self, keep_kernel=True):
         # See ZMQExitAutocall.
-        self.keepkernel_on_exit = True
+        self.keepkernel_on_exit = keep_kernel
         self.ask_exit()
 
 
@@ -62,6 +64,24 @@ class OurIPythonKernel(IPythonKernel):
         pass
 
 
+class OurOutStream():
+    """
+    Stream proxy:
+    Call thread streams if in my thread
+    Otherwise, call standard stream (process-wide)
+    """
+    def __init__(self, process_stream, session, socket, name):
+        self._process_stream = process_stream
+        self._thread_stream = OutStream(session, socket, name)
+        self._thread_id = threading.currentThread().ident
+
+    def __getattr__(self, name):
+        ident = threading.currentThread().ident
+        if ident == self._thread_id:
+            return getattr(self._thread_stream, name)
+        return getattr(self._process_stream, name)
+
+
 class IPythonBackgroundKernelWrapper:
     """
     You can remotely connect to this IPython kernel. See the output on stdout.
@@ -70,11 +90,12 @@ class IPythonBackgroundKernelWrapper:
     """
 
     def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None,
-                 user_ns=None, banner="Hello from background-zmq-ipython."):
+                 user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython."):
         """
         :param str connection_filename:
         :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
         :param logging.Logger logger:
+        :param bool redirect_stdio: write stdio of this thread to the client requesting it
         """
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
@@ -90,6 +111,7 @@ class IPythonBackgroundKernelWrapper:
         self._control_stream = None
         self._kernel = None  # type: typing.Optional[OurIPythonKernel]
         self.user_ns = user_ns
+        self._redirect_stdio = redirect_stdio
         self._banner = banner
 
         if not logger:
@@ -97,6 +119,23 @@ class IPythonBackgroundKernelWrapper:
             # or no logging? logger.addHandler(logging.NullHandler())
             logger.addHandler(logging.StreamHandler(sys.stdout))
         self._logger = logger
+
+    def _init_io(self):
+        """
+        Redirect stdout to iopub socket
+        call me after logging connection file
+        """
+        self._stdout_save, self._stderr_save = sys.stdout, sys.stderr
+        sys.stdout = OurOutStream(sys.stdout, self._session, self._iopub_socket, 'stderr')
+        sys.stderr = OurOutStream(sys.stderr, self._session, self._iopub_socket, 'stderr')
+
+    def _reset_io(self):
+        """
+        Restore original io to please client
+        call me on kernel close
+        """
+        sys.stdout = self._stdout_save
+        sys.stderr = self._stderr_save
 
     def _create_session(self):
         from jupyter_client.session import Session
@@ -211,6 +250,10 @@ class IPythonBackgroundKernelWrapper:
         self._create_kernel()
 
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
+        if self._redirect_stdio:
+            import atexit
+            self._init_io()
+            atexit.register(self._reset_io)
         self._kernel.start()
 
     def _tornado_handle_callback_exception(self, callback):
