@@ -101,8 +101,7 @@ class IPythonBackgroundKernelWrapper:
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
 
-        self._should_reduce_filename = False
-        self.connection_filename = self._get_connection_filename(
+        self.connection_filename, self._should_reduce_filename = self._craft_connection_filename(
             connection_filename, connection_fn_with_pid)
         self.loop = None  # type: typing.Optional[ioloop.IOLoop]
         self.thread = None  # type: typing.Optional[threading.Thread]
@@ -136,21 +135,27 @@ class IPythonBackgroundKernelWrapper:
         sys.stdout = self._stdout_save
         sys.stderr = self._stderr_save
 
-    def _get_connection_filename(self, connection_filename, connection_fn_with_pid):
-        """Craft connection file path"""
-        if connection_fn_with_pid and connection_filename is None:
-            self._should_reduce_filename = True
+    def _craft_connection_filename(self, connection_filename, connection_fn_with_pid):
+        """
+        :param str connection_filename:
+        :param bool connection_fn_with_pid:
+        :return: full connection file path, should logger reduce filename
+        :rtype: (str, bool)
+        """
+        should_reduce_filename = False
         if connection_filename is None:
             connection_filename = 'kernel.json'
             try:
                 from jupyter_core.paths import jupyter_runtime_dir
                 connection_filename = os.path.join(jupyter_runtime_dir(), connection_filename)
+                if connection_fn_with_pid:
+                    should_reduce_filename = True
             except ImportError:
                 pass
         if connection_fn_with_pid:
             name, ext = os.path.splitext(connection_filename)
             connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
-        return connection_filename
+        return connection_filename, should_reduce_filename
 
     def _create_session(self):
         from jupyter_client.session import Session
