@@ -90,7 +90,7 @@ class IPythonBackgroundKernelWrapper:
     https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script
     """
 
-    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None,
+    def __init__(self, connection_filename=None, connection_fn_with_pid=True, logger=None,
                  user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython."):
         """
         :param str connection_filename:
@@ -101,17 +101,9 @@ class IPythonBackgroundKernelWrapper:
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
 
-        # Get connection file path
-        if connection_fn_with_pid:
-            name, ext = os.path.splitext(connection_filename)
-            connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
-            try:
-                from jupyter_core.paths import jupyter_runtime_dir
-                connection_filename = os.path.join(jupyter_runtime_dir(), connection_filename)
-            except ImportError:
-                pass
-        self.connection_filename = connection_filename
-
+        self._should_reduce_filename = False
+        self.connection_filename = self._get_connection_filename(
+            connection_filename, connection_fn_with_pid)
         self.loop = None  # type: typing.Optional[ioloop.IOLoop]
         self.thread = None  # type: typing.Optional[threading.Thread]
         self._shell_stream = None
@@ -143,6 +135,22 @@ class IPythonBackgroundKernelWrapper:
         """
         sys.stdout = self._stdout_save
         sys.stderr = self._stderr_save
+
+    def _get_connection_filename(self, connection_filename, connection_fn_with_pid):
+        """Craft connection file path"""
+        if connection_fn_with_pid and connection_filename is None:
+            self._should_reduce_filename = True
+        if connection_filename is None:
+            connection_filename = 'kernel.json'
+            try:
+                from jupyter_core.paths import jupyter_runtime_dir
+                connection_filename = os.path.join(jupyter_runtime_dir(), connection_filename)
+            except ImportError:
+                pass
+        if connection_fn_with_pid:
+            name, ext = os.path.splitext(connection_filename)
+            connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
+        return connection_filename
 
     def _create_session(self):
         from jupyter_client.session import Session
@@ -204,9 +212,12 @@ class IPythonBackgroundKernelWrapper:
             r_cfile = r'.*kernel-([^\-]*).*\.json'
             return re.sub(r_cfile, r'\1', runtime_file)
 
+        fname_log = self.connection_filename
+        if self._should_reduce_filename:
+            fname_log = shorten_filename(fname_log)
         self._logger.info(
-            "To connect another client to this IPython kernel, use: " +
-            "jupyter console --existing %s" % shorten_filename(self.connection_filename))
+            "To connect another client to this IPython kernel, use: "
+            "jupyter console --existing %s", fname_log)
 
     def _setup_streams(self):
         """
@@ -262,7 +273,8 @@ class IPythonBackgroundKernelWrapper:
         self._setup_streams()
         self._create_kernel()
 
-        self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
+        self._logger.info("IPython: Start kernel now. pid: %i, thread: %r",
+                          os.getpid(), threading.current_thread())
         if self._redirect_stdio:
             import atexit
             self._init_io()
