@@ -274,8 +274,9 @@ class IPythonBackgroundKernelWrapper:
         self._setup_streams()
         self._create_kernel()
 
-        self._logger.info("IPython: Start kernel now. pid: %i, thread: %r",
-                          os.getpid(), threading.current_thread())
+        self._logger.info(
+            "IPython: Start kernel now. pid: %i, thread: %r",
+            os.getpid(), threading.current_thread())
         if self._redirect_stdio:
             import atexit
             self._init_io()
