@@ -1,4 +1,5 @@
 
+import re
 import os
 import sys
 import threading
@@ -89,7 +90,7 @@ class IPythonBackgroundKernelWrapper:
     https://stackoverflow.com/questions/29148319/provide-remote-shell-for-python-script
     """
 
-    def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None,
+    def __init__(self, connection_filename=None, connection_fn_with_pid=True, logger=None,
                  user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython."):
         """
         :param str connection_filename:
@@ -100,11 +101,8 @@ class IPythonBackgroundKernelWrapper:
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
 
-        if connection_fn_with_pid:
-            name, ext = os.path.splitext(connection_filename)
-            connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
-        self.connection_filename = connection_filename
-
+        self.connection_filename, self._should_reduce_filename = self._craft_connection_filename(
+            connection_filename, connection_fn_with_pid)
         self.loop = None  # type: typing.Optional[ioloop.IOLoop]
         self.thread = None  # type: typing.Optional[threading.Thread]
         self._shell_stream = None
@@ -136,6 +134,28 @@ class IPythonBackgroundKernelWrapper:
         """
         sys.stdout = self._stdout_save
         sys.stderr = self._stderr_save
+
+    def _craft_connection_filename(self, connection_filename, connection_fn_with_pid):
+        """
+        :param str connection_filename:
+        :param bool connection_fn_with_pid:
+        :return: full connection file path, should logger reduce filename
+        :rtype: (str, bool)
+        """
+        should_reduce_filename = False
+        if connection_filename is None:
+            connection_filename = 'kernel.json'
+            try:
+                from jupyter_core.paths import jupyter_runtime_dir
+                connection_filename = os.path.join(jupyter_runtime_dir(), connection_filename)
+                if connection_fn_with_pid:
+                    should_reduce_filename = True
+            except ImportError:
+                pass
+        if connection_fn_with_pid:
+            name, ext = os.path.splitext(connection_filename)
+            connection_filename = "%s-%i%s" % (name, os.getpid(), ext)
+        return connection_filename, should_reduce_filename
 
     def _create_session(self):
         from jupyter_client.session import Session
@@ -191,9 +211,14 @@ class IPythonBackgroundKernelWrapper:
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
         os.chmod(self.connection_filename, os.stat(self.connection_filename).st_mode & 0o0700)
+
+        # Log connection advice to stdout
+        fname_log = self.connection_filename
+        if self._should_reduce_filename:
+            fname_log = re.sub(r'.*kernel-([^\-]*).*\.json', r'\1', fname_log)
         self._logger.info(
-            "To connect another client to this IPython kernel, use: " +
-            "jupyter console --existing %s" % self.connection_filename)
+            "To connect another client to this IPython kernel, use: "
+            "jupyter console --existing %s", fname_log)
 
     def _setup_streams(self):
         """
@@ -249,7 +274,9 @@ class IPythonBackgroundKernelWrapper:
         self._setup_streams()
         self._create_kernel()
 
-        self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
+        self._logger.info(
+            "IPython: Start kernel now. pid: %i, thread: %r",
+            os.getpid(), threading.current_thread())
         if self._redirect_stdio:
             import atexit
             self._init_io()
