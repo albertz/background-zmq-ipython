@@ -249,7 +249,7 @@ class IPythonBackgroundKernelWrapper:
         loop.add_callback(self._start_kernel)
         try:
             loop.start()
-        except (KeyboardInterrupt, SystemExit):
+        except KeyboardInterrupt:
             pass
 
     def start(self):
