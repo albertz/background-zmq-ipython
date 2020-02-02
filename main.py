@@ -30,6 +30,7 @@ def _main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("--no_connection_fn_with_pid", action="store_true")
     arg_parser.add_argument("--debug_embed", action="store_true")
+    arg_parser.add_argument("--redirect_stdio", action="store_true")
     args = arg_parser.parse_args()
 
     if args.debug_embed:
@@ -38,7 +39,8 @@ def _main():
 
     init_ipython_kernel(
         user_ns={"demo_var": 42},
-        connection_fn_with_pid=not args.no_connection_fn_with_pid)
+        connection_fn_with_pid=not args.no_connection_fn_with_pid,
+        redirect_stdio=args.redirect_stdio)
 
     # Do nothing. Keep main thread alive, as IPython kernel lives in a daemon thread.
     # This is just a demo. Normally you would have your main loop in the main thread.

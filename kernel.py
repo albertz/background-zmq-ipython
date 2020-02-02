@@ -90,11 +90,12 @@ class IPythonBackgroundKernelWrapper:
     """
 
     def __init__(self, connection_filename="kernel.json", connection_fn_with_pid=True, logger=None,
-                 user_ns=None, banner="Hello from background-zmq-ipython."):
+                 user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython."):
         """
         :param str connection_filename:
         :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
         :param logging.Logger logger:
+        :param bool redirect_stdio: write stdio of this thread to the client requesting it
         """
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
@@ -110,6 +111,7 @@ class IPythonBackgroundKernelWrapper:
         self._control_stream = None
         self._kernel = None  # type: typing.Optional[OurIPythonKernel]
         self.user_ns = user_ns
+        self._redirect_stdio = redirect_stdio
         self._banner = banner
 
         if not logger:
@@ -185,7 +187,6 @@ class IPythonBackgroundKernelWrapper:
         import atexit
         from ipykernel import write_connection_file
         atexit.register(self._cleanup_connection_file)
-        atexit.register(self._reset_io)
         write_connection_file(self.connection_filename, key=self._session.key, **self._connection_info)
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
@@ -249,7 +250,10 @@ class IPythonBackgroundKernelWrapper:
         self._create_kernel()
 
         self._logger.info("IPython: Start kernel now. pid: %i, thread: %r" % (os.getpid(), threading.current_thread()))
-        self._init_io()
+        if self._redirect_stdio:
+            import atexit
+            self._init_io()
+            atexit.register(self._reset_io)
         self._kernel.start()
 
     def _tornado_handle_callback_exception(self, callback):
