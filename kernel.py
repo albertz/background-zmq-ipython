@@ -41,6 +41,9 @@ class OurZMQInteractiveShell(ZMQInteractiveShell):
     def init_sys_modules(self):
         pass
 
+    def init_environment(self):
+        pass
+
     def init_prompts(self):
         pass
 
