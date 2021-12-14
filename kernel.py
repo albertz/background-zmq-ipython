@@ -4,9 +4,11 @@ import os
 import sys
 import threading
 import logging
+from packaging import version
 # Note: IPython uses zmq.eventloop.zmqstream.ZMQStream, see IPythonKernel.
 # ZMQStream wants a Tornado IOLoop, not a asyncio loop.
 from tornado import ioloop
+import ipykernel
 from ipykernel.ipkernel import IPythonKernel, ZMQInteractiveShell
 from ipykernel.iostream import OutStream
 
@@ -254,7 +256,9 @@ class IPythonBackgroundKernelWrapper:
         config.HistoryAccessor.connection_options = dict(check_same_thread=False)
         kernel = OurIPythonKernel(
             session=self._session,
-            shell_streams=[self._shell_stream, self._control_stream],
+            **(dict(shell_stream=self._shell_stream, control_stream=self._control_stream)
+               if version.parse(ipykernel.__version__) >= version.parse('6.0')
+               else dict(shell_streams=[self._shell_stream, self._control_stream])),
             iopub_socket=self._iopub_socket,
             log=self._logger,
             user_ns=self.user_ns,
