@@ -94,12 +94,14 @@ class IPythonBackgroundKernelWrapper:
     """
 
     def __init__(self, connection_filename=None, connection_fn_with_pid=True, logger=None,
-                 user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython."):
+                 user_ns=None, redirect_stdio=False, banner="Hello from background-zmq-ipython.",
+                 allow_remote_connections=False):
         """
         :param str connection_filename:
         :param bool connection_fn_with_pid: will add "-<pid>" to the filename (before the extension)
         :param logging.Logger logger:
         :param bool redirect_stdio: write stdio of this thread to the client requesting it
+        :param bool allow_remote_connections: allow connections from other machines
         """
         self._lock = threading.Lock()
         self._condition = threading.Condition(lock=self._lock)
@@ -114,6 +116,7 @@ class IPythonBackgroundKernelWrapper:
         self.user_ns = user_ns
         self._redirect_stdio = redirect_stdio
         self._banner = banner
+        self._allowed_remote_connections = allow_remote_connections
 
         if not logger:
             logger = logging.Logger("IPython", level=logging.INFO)
@@ -176,7 +179,10 @@ class IPythonBackgroundKernelWrapper:
         from ipykernel.heartbeat import Heartbeat
 
         context = zmq.Context()  # or existing? zmq.Context.instance()
-        ip = socket.gethostbyname(socket.gethostname())
+        if self._allowed_remote_connections:
+            ip = socket.gethostbyname(socket.gethostname())
+        else:
+            ip = '127.0.0.1'
         transport = "tcp"
         addr = "%s://%s" % (transport, ip)
         shell_socket = context.socket(zmq.ROUTER)
