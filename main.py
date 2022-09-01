@@ -1,10 +1,20 @@
-
+"""
+Demo main loop
+"""
 
 import os
+import sys
+import types
 
 if __name__ == '__main__':
     # Make relative imports work here. https://stackoverflow.com/questions/54576879/
     __path__ = [os.path.dirname(os.path.abspath(__file__))]
+    __package__ = "background_zmq_ipython"
+    pkg_mod = types.ModuleType(__package__)
+    sys.modules[__package__] = pkg_mod
+    pkg_mod.__package__ = __package__
+    pkg_mod.__file__ = os.path.abspath("__init__.py")
+    pkg_mod.__path__ = __path__
 
 from .kernel import init_ipython_kernel
 
