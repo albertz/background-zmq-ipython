@@ -1,3 +1,6 @@
+"""
+IPython/Jupyter kernel
+"""
 
 import re
 import os
