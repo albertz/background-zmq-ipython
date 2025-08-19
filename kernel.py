@@ -221,6 +221,7 @@ class IPythonBackgroundKernelWrapper:
         import atexit
         from ipykernel import write_connection_file
         atexit.register(self._cleanup_connection_file)
+        os.makedirs(os.path.dirname(self.connection_filename), exist_ok=True)
         write_connection_file(self.connection_filename, key=self._session.key, **self._connection_info)
         # The key should be secret, to only allow the same user to connect.
         # Make sure the permissions are set accordingly.
